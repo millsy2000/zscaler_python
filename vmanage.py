@@ -1,3 +1,4 @@
+  
 """
 Written by Craig B.
 https://github.com/Phatkone
@@ -15,7 +16,6 @@ import json
 import time
 from lib.cprint import cprint
 
-vmanage = {'host' : '192.168.0.230','username' : 'admin', 'password' : 'admin'}
 
 def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool = False, *args, **kwargs) -> tuple:  
     s = requests.session()
@@ -29,8 +29,8 @@ def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool 
         cprint(e,'yellow')
         exit()
     
-    if verbose:
-        cprint("Response: {}".format(r.text), 'green')
+    #if verbose:
+        #cprint("Response: {}".format(r.text), 'green')
         cprint("Retrieving client XSRF token", 'purple')
     t = s.get("https://{}/dataservice/client/token".format(url))
     if verbose:
@@ -45,13 +45,13 @@ def getDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_na
     if verbose:
         cprint("Retrieving data prefix list from: https://{}:{}/dataservice/template/policy/list/dataprefix".format(url, port), 'purple')
     r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix".format(url, port), verify = verify)
-    if verbose:
-        cprint("Response: {}".format(r.text), 'green')
+    #if verbose:
+        #cprint("Response: {}".format(r.text), 'green')
     js = r.json()
     list_id = ""
     entries = js['data']
-    if verbose:
-        cprint("data response: {} ".format(entries), 'green')
+    #if verbose:
+        #cprint("data response: {} ".format(entries), 'green')
     for entry in entries:
         if entry['name'] == list_name:
             list_id = entry["listId"]
@@ -68,8 +68,8 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     if verbose:
         cprint("Creating data prefix list structure. ", "purple")
     for ip in ipv4:
-        if verbose:
-            cprint("Adding entry: {}".format(ip), "green")
+        #if verbose:
+            #cprint("Adding entry: {}".format(ip), "green")
         data["entries"].append({"ipPrefix":ip})
     
     
@@ -93,18 +93,18 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
                     data["entries"].append({"ipPrefix":"{}/32".format(record)})
             del records
         elif ipReg.isIPv4(entry):
-            if verbose:
-                cprint("Adding entry: {}".format(entry), "purple")
+            #if verbose:
+                #cprint("Adding entry: {}".format(entry), "purple")
             data["entries"].append({"ipPrefix":"{}/32".format(entry) if '/' not in entry else entry})
 
     success = False
     attempts = 1
 
-    if verbose or dry:
-        cprint("New Data Prefix List: {}".format(json.dumps(data, indent=2)), "green")
+    #if verbose or dry:
+    #    cprint("New Data Prefix List: {}".format(json.dumps(data, indent=2)), "green")
 
-    if verbose:
-        cprint("Putting new data prefix list data into vManage", "purple")
+    #if verbose:
+        #cprint("Putting new data prefix list data into vManage", "purple")
     while success == False and attempts <= retries:
         if verbose or dry:
             cprint("Put request to: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
@@ -140,6 +140,7 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
         cprint("Response: {}".format(r.text), "yellow")
     js = r.json()
     pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
+    print("pol_id in vmanage script is: {}".format(pol_id))
     return pol_id
 
 def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, pol_id: str, retries: int, timeout: int, verbose: bool = False, dry: bool = False, *args, **kwargs) -> None:
@@ -194,8 +195,8 @@ def main() -> None:
         config["ssl_verify"],
         verbose
     )
-    if verbose:
-        cprint("Data Prefix List ID: {}".format(data_prefix_list), "green")
+    #if verbose:
+        #cprint("Data Prefix List ID: {}".format(data_prefix_list), "green")
 
     if data_prefix_list == "":
         cprint("Data Prefix List Not Found {}".format(data_prefix_list), "red")
@@ -297,3 +298,5 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         cprint("Interrupted by keyboard", "red", bold = True)
+
+
