@@ -23,7 +23,7 @@ config = {
         "vmanage_port": 443,
         "vmanage_user_defined_entries": [],
         "retries": 5,
-        "timeout": 300,
+        "timeout": 120,
         "ssl_verify": False,
         "http_proxy": False,
         "https_proxy": False
@@ -37,6 +37,7 @@ zscloudemea_list = []
 zscalerapac_list = []
 zscaleramerica_list = []
 zscaleremea_list = []
+
 def main() -> None:
 
    if config["ssl_verify"] == False:
@@ -45,12 +46,8 @@ def main() -> None:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
-    headers = {
-        "Content-Type":"application/json",
-        "Accept":"application/json"
-    }
     ipv6 = "Null"
-    #s=getvManageSession(headers)
+
     cprint("Retrieving ZScaler Public IP Addresses", "purple")
     
     zscloudjson = requests.get("https://api.config.zscaler.com/zscloud.net/cenr/json").json()
@@ -88,36 +85,44 @@ def main() -> None:
       
     data_prefix_list = [{
     "prefixes" : zscloudapac_list,"data_prefix_list" : "zscloudapac_list"},
-	{"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
-	{"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
-    {"prefixes" : zscalerapac_list,"data_prefix_list" : "zscloudapac_list"},
-	{"prefixes" : zscaleremea, "data_prefix_list" : "zscloudemea_list"},
-	{"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscloudamerica_list"}
+    {"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
+    {"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
+    {"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
+    {"prefixes" : zscaleremea, "data_prefix_list" : "zscaleremea_list"},
+    {"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
     ]
+    lists = len(data_prefix_list)
+    s,headers, j = getvManageSession()
     
-    cprint("Updating data prefix list", "purple")
+    cprint("\n###################################", "green")
+    cprint("Updating vManage Data Prefix Lists", "purple")
+    cprint("There are {} lists to update".format(lists), "green")
+    cprint("###################################\n", "green")
+    
     
     for x in data_prefix_list:
-     #Iterate through Zscaler list update vManage Data Prefix lists and Activate Policy
-     s=getvManageSession(headers)    
-     cprint("Updating Data Prefix for: {}".format(x["data_prefix_list"]), "Purple")
+     #Iterate through Zscaler list update vManage Data Prefix lists
+     
+     cprint("\nUpdating Data Prefix for: {}".format(x["data_prefix_list"]), "Purple")
      cprint("There are {} prefixes in this data set".format(len(x["prefixes"])),"Green")
-     pol_id = updateDataPrefix(s,x, headers)
- 
+     
+     pol_id = updateDataPrefix(s,x, headers)    
+     
+     cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
+     lists=lists-1
+     cprint("Number of Prefixes left to complete: {}".format(lists))
+    
+     cprint("Activating Policy: {}".format(pol_id), "Purple")
      if len(pol_id) < 1:
       cprint("Referenced Policies not found", "red")
       exit()
-     
-     #cprint("Activating Policy: {}".format(pol_id), "Purple")
-     #updatevSmartPolicy(s,pol_id, headers)
-     cprint("Waiting for Policy to apply", "Purple")
-     time.sleep(30)
-     cprint("Successfully updated poicies.", "green")
-     cprint("Logging out of API Session", "Purple")
-     s.get("https://{}/logout?nocache=").format(config["vmanage_address"])
+     updatevSmartPolicy(s,pol_id, headers)  
+     cprint("Successfully activated vSmart Policy.", "green")
 
 def updateDataPrefix(s,zscaler_region, headers):
     ipv6 = "Null"
+    
+    cprint("Getting Data Prefix ID from vManage",'purple')
     data_prefix_list = vmanage.getDataPrefixList(s, 
         config["vmanage_address"], 
         config["vmanage_port"], 
@@ -125,6 +130,7 @@ def updateDataPrefix(s,zscaler_region, headers):
         config["ssl_verify"],
         verbose
     )
+    cprint("Pushing updated Prefix list to vManage for {}".format(zscaler_region["data_prefix_list"]),'purple')
     pol_id = vmanage.updateDataPrefixList(s, 
         config["vmanage_address"], 
         config["vmanage_port"], 
@@ -143,6 +149,8 @@ def updateDataPrefix(s,zscaler_region, headers):
     return pol_id
 
 def updatevSmartPolicy(s,pol_id, headers):
+    cprint("Activating Policy on vSmart",'purple')
+    cprint("Policy ID is {}".format(pol_id),'red')
     for id in pol_id:
         vmanage.activatePolicies(s, 
             config["vmanage_address"], 
@@ -155,21 +163,24 @@ def updatevSmartPolicy(s,pol_id, headers):
             verbose,
             dry
         )
-def getvManageSession(headers):
+def getvManageSession():
 
+ headers = {
+    "Content-Type":"application/json",
+    "Accept":"application/json"
+    }
  if verbose:
-        cprint("Setting content headers: {}".format(headers), "purple")
-
+        cprint("Setting content headers: {}".format(headers), "purple")    
  
  cprint("Retrieving Session Token", "purple")
- s, headers['X-XSRF-TOKEN'] = vmanage.getSession(config["vmanage_address"], 
+ s, headers['X-XSRF-TOKEN'], j = vmanage.getSession(config["vmanage_address"], 
         config["vmanage_user"], 
         config["vmanage_password"], 
         config["ssl_verify"]
     )
  if verbose:
         cprint("Session Token: {}".format(headers['X-XSRF-TOKEN']), "green")
- return s
+ return s, headers, j
     
 
 main()

@@ -15,7 +15,6 @@ import json
 import time
 from lib.cprint import cprint
 
-vmanage = {'host' : '192.168.0.230','username' : 'admin', 'password' : 'admin'}
 
 def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool = False, *args, **kwargs) -> tuple:  
     s = requests.session()
@@ -34,12 +33,17 @@ def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool 
         cprint("Retrieving client XSRF token", 'purple')
     t = s.get("https://{}/dataservice/client/token".format(url))
     if verbose:
+        cprint("Retrieving JSESSION ID", 'purple')
+    j = s.cookies.get_dict()["JSESSIONID"]
+    if verbose:
+        cprint("JESSIONID: {}".format(j))
+    if verbose:
         cprint("Response: {}".format(t.text), 'purple')
     t = t.text
     if b"<html>" in  r.content:
         cprint("vManage login failed", 'red')
         exit(-1)
-    return s, t
+    return s, t, j
 
 def getDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_name: str, verify: bool = True, verbose: bool = False, *args, **kwargs) -> str:
     if verbose:
@@ -106,8 +110,8 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     if verbose:
         cprint("Putting new data prefix list data into vManage", "purple")
     while success == False and attempts <= retries:
-        if verbose or dry:
-            cprint("Put request to: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
+        #if verbose or dry:
+        cprint("Put request to: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
         if dry:
             success = True
             continue
