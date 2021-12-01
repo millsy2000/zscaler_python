@@ -14,6 +14,7 @@ import requests
 import json
 import time
 from lib.cprint import cprint
+from lib import ipReg
 
 
 def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool = False, *args, **kwargs) -> tuple:  
@@ -27,7 +28,6 @@ def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool 
         cprint("Unable to establish session to vManage:\n  ", 'red', True)
         cprint(e,'yellow')
         exit()
-    
     if verbose:
         cprint("Response: {}".format(r.text), 'green')
         cprint("Retrieving client XSRF token", 'purple')
@@ -67,7 +67,46 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     data = {
         "name" :list_name,
         "entries": [
-        ]
+        ],
+    }
+    data1= {  
+    "deviceIds": [
+        "d406d5ba-bba2-411c-b13c-eda76ba0055a"
+    ],
+    "isEdited": "true",
+    "isMasterEdited": "false",
+    "templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7"
+    }
+    data2 = {
+    "device": [
+    {
+      "csv-deviceIP": "7.7.7.108",
+      "csv-deviceId": "d406d5ba-bba2-411c-b13c-eda76ba0055a",
+      "csv-host-name": "vSmart"
+    }
+    ]
+    }
+    data3= {
+    "deviceTemplateList": [
+        {
+            "templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7",
+            "device": [
+                {
+                    "csv-status": "complete",
+                    "csv-deviceId": "d406d5ba-bba2-411c-b13c-eda76ba0055a",
+                    "csv-deviceIP": "7.7.7.108",
+                    "csv-host-name": "vSmart",
+                    "/0/vpn-instance/ip/route/0.0.0.0/0/next-hop/address": "10.10.1.1",
+                    "//system/host-name": "vSmart",
+                    "//system/system-ip": "7.7.7.108",
+                    "//system/site-id": "1",
+                    "csv-templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7"
+                }
+            ],
+            "isEdited": "true",
+            "isMasterEdited": "false"
+        }
+    ]
     }
     if verbose:
         cprint("Creating data prefix list structure. ", "purple")
@@ -116,6 +155,21 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
             success = True
             continue
         r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
+        cprint("response {}".format(r.json()),"red")
+        processID = r.json()["processId"]
+        cprint("ProcessID is: {}".format(processID),"yellow")
+        r1 = s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port), headers=headers,verify=verify, data=json.dumps(data1))
+        cprint("response1 {}".format(r1.json()),"green")
+        time.sleep(2)
+        r2 = s.post("https://{}:{}/dataservice/template/device/config/duplicateip".format(url,port), headers=headers,verify=verify, data=json.dumps(data2))
+        cprint("response2 {}".format(r2.json()),"red")
+        time.sleep(2)
+        r3 = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers,verify=verify, data=json.dumps(data3))
+        cprint("response3 {}".format(r3.json()),"green")
+        time.sleep(30)
+        r4 = s.put("https://{}:{}/dataservice/template/lock/{}".format(url,port,processID), headers=headers,verify=verify)
+        cprint("response4 status {}".format(r4),"purple")
+        time.sleep(2)
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
         if "error" in r.json().keys():
@@ -144,6 +198,7 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
         cprint("Response: {}".format(r.text), "yellow")
     js = r.json()
     pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
+    cprint("pol_id is {}".format(pol_id),"red")
     return pol_id
 
 def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, pol_id: str, retries: int, timeout: int, verbose: bool = False, dry: bool = False, *args, **kwargs) -> None:
@@ -155,7 +210,7 @@ def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: 
         if dry:
             success = True
             return
-        r = s.post("https://{}:{}/dataservice/template/policy/vsmart/activate/{}".format(url, port, pol_id), headers=headers, data="{}",verify=verify)
+        r = s.post("https://{}:{}/dataservice/template/policy/vsmart/activate/{}?confirm=true".format(url, port, pol_id), headers=headers, data="{}",verify=verify)
         if verbose:
             cprint("Response: {}".format(r.text))
         if r.status_code == 200:

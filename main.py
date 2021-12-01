@@ -20,10 +20,10 @@ config = {
         "vmanage_user": 'admin',
         "vmanage_password": 'admin',
         "vmanage_address": '192.168.0.230',
-        "vmanage_port": 443,
+        "vmanage_port": 8443,
         "vmanage_user_defined_entries": [],
         "retries": 5,
-        "timeout": 120,
+        "timeout": 300,
         "ssl_verify": False,
         "http_proxy": False,
         "https_proxy": False
@@ -92,14 +92,14 @@ def main() -> None:
     {"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
     ]
     lists = len(data_prefix_list)
-    s,headers, j = getvManageSession()
-    
+        
     cprint("\n###################################", "green")
-    cprint("Updating vManage Data Prefix Lists", "purple")
-    cprint("There are {} lists to update".format(lists), "green")
+    cprint("Updating vManage Data Prefix Lists", "yellow")
+    cprint("There are {} lists to update".format(lists), "yellow")
     cprint("###################################\n", "green")
-    
-    
+
+    s,headers = getvManageSession()
+
     for x in data_prefix_list:
      #Iterate through Zscaler list update vManage Data Prefix lists
      
@@ -111,19 +111,24 @@ def main() -> None:
      cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
      lists=lists-1
      cprint("Number of Prefixes left to complete: {}".format(lists))
-    
      cprint("Activating Policy: {}".format(pol_id), "Purple")
      if len(pol_id) < 1:
       cprint("Referenced Policies not found", "red")
       exit()
-     updatevSmartPolicy(s,pol_id, headers)  
-     cprint("Successfully activated vSmart Policy.", "green")
+     updatevSmartPolicy(s,pol_id, headers)
+    #cprint("Successfully activated vSmart Policy.", "green")
+     #cprint("Logging out of session","purple")
+     #s.get("https://{}/logout?nocache=".format(config["vmanage_address"]),headers=headers) 
+     #cprint("Waiting 5 minutes for template lock to be removed","purple")
+     time.sleep(45) 
+
+    
 
 def updateDataPrefix(s,zscaler_region, headers):
     ipv6 = "Null"
     
     cprint("Getting Data Prefix ID from vManage",'purple')
-    data_prefix_list = vmanage.getDataPrefixList(s, 
+    data_prefix_list_id = vmanage.getDataPrefixList(s, 
         config["vmanage_address"], 
         config["vmanage_port"], 
         zscaler_region["data_prefix_list"], 
@@ -134,7 +139,7 @@ def updateDataPrefix(s,zscaler_region, headers):
     pol_id = vmanage.updateDataPrefixList(s, 
         config["vmanage_address"], 
         config["vmanage_port"], 
-        data_prefix_list, 
+        data_prefix_list_id, 
         zscaler_region["data_prefix_list"], 
         config["ssl_verify"], 
         headers, 
@@ -149,8 +154,6 @@ def updateDataPrefix(s,zscaler_region, headers):
     return pol_id
 
 def updatevSmartPolicy(s,pol_id, headers):
-    cprint("Activating Policy on vSmart",'purple')
-    cprint("Policy ID is {}".format(pol_id),'red')
     for id in pol_id:
         vmanage.activatePolicies(s, 
             config["vmanage_address"], 
@@ -164,7 +167,6 @@ def updatevSmartPolicy(s,pol_id, headers):
             dry
         )
 def getvManageSession():
-
  headers = {
     "Content-Type":"application/json",
     "Accept":"application/json"
@@ -178,9 +180,12 @@ def getvManageSession():
         config["vmanage_password"], 
         config["ssl_verify"]
     )
+ headers["Cookie"]="JSESSIONID={}".format(j)   
  if verbose:
-        cprint("Session Token: {}".format(headers['X-XSRF-TOKEN']), "green")
- return s, headers, j
+  cprint("Session Token: {}".format(headers['X-XSRF-TOKEN']), "green")
+ if verbose:
+  cprint("{}".format(headers["Cookie"]), "green")
+ return s, headers
     
 
 main()
