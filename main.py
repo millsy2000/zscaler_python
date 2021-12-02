@@ -23,7 +23,7 @@ config = {
         "vmanage_port": 8443,
         "vmanage_user_defined_entries": [],
         "retries": 5,
-        "timeout": 300,
+        "timeout": 10,
         "ssl_verify": False,
         "http_proxy": False,
         "https_proxy": False
@@ -88,7 +88,7 @@ def main() -> None:
     {"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
     {"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
     {"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
-    {"prefixes" : zscaleremea, "data_prefix_list" : "zscaleremea_list"},
+    {"prefixes" : zscaleremea_list, "data_prefix_list" : "zscaleremea_list"},
     {"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
     ]
     lists = len(data_prefix_list)
@@ -111,19 +111,7 @@ def main() -> None:
      cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
      lists=lists-1
      cprint("Number of Prefixes left to complete: {}".format(lists))
-     cprint("Activating Policy: {}".format(pol_id), "Purple")
-     if len(pol_id) < 1:
-      cprint("Referenced Policies not found", "red")
-      exit()
-     updatevSmartPolicy(s,pol_id, headers)
-    #cprint("Successfully activated vSmart Policy.", "green")
-     #cprint("Logging out of session","purple")
-     #s.get("https://{}/logout?nocache=".format(config["vmanage_address"]),headers=headers) 
-     #cprint("Waiting 5 minutes for template lock to be removed","purple")
-     time.sleep(45) 
-
     
-
 def updateDataPrefix(s,zscaler_region, headers):
     ipv6 = "Null"
     

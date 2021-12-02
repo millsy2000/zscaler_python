@@ -64,6 +64,7 @@ def getDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_na
     return list_id
 
 def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_id: str, list_name: str, verify: bool, headers: dict, ipv4: list, ipv6: list, retries: int, timeout: int, user_defined_entries: list = [], verbose: bool = False, dry: bool = False, *args, **kwargs) -> str:
+    masterTemplate = ""
     data = {
         "name" :list_name,
         "entries": [
@@ -71,11 +72,10 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     }
     data1= {  
     "deviceIds": [
-        "d406d5ba-bba2-411c-b13c-eda76ba0055a"
-    ],
-    "isEdited": "true",
-    "isMasterEdited": "false",
-    "templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7"
+            ],
+    "isEdited": True,
+    "isMasterEdited": False,
+    "templateId": masterTemplate
     }
     data2 = {
     "device": [
@@ -89,22 +89,11 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     data3= {
     "deviceTemplateList": [
         {
-            "templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7",
+            "templateId": masterTemplate,
             "device": [
-                {
-                    "csv-status": "complete",
-                    "csv-deviceId": "d406d5ba-bba2-411c-b13c-eda76ba0055a",
-                    "csv-deviceIP": "7.7.7.108",
-                    "csv-host-name": "vSmart",
-                    "/0/vpn-instance/ip/route/0.0.0.0/0/next-hop/address": "10.10.1.1",
-                    "//system/host-name": "vSmart",
-                    "//system/system-ip": "7.7.7.108",
-                    "//system/site-id": "1",
-                    "csv-templateId": "81e9830d-8801-4f80-a187-d77b08cbd6a7"
-                }
             ],
-            "isEdited": "true",
-            "isMasterEdited": "false"
+            "isEdited": True,
+            "isMasterEdited": False
         }
     ]
     }
@@ -142,6 +131,7 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
 
     success = False
     attempts = 1
+    status = "in_progress"
 
     if verbose or dry:
         cprint("New Data Prefix List: {}".format(json.dumps(data, indent=2)), "green")
@@ -155,21 +145,34 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
             success = True
             continue
         r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
-        cprint("response {}".format(r.json()),"red")
-        processID = r.json()["processId"]
-        cprint("ProcessID is: {}".format(processID),"yellow")
-        r1 = s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port), headers=headers,verify=verify, data=json.dumps(data1))
-        cprint("response1 {}".format(r1.json()),"green")
-        time.sleep(2)
-        r2 = s.post("https://{}:{}/dataservice/template/device/config/duplicateip".format(url,port), headers=headers,verify=verify, data=json.dumps(data2))
-        cprint("response2 {}".format(r2.json()),"red")
-        time.sleep(2)
+        masterTemplate = r.json()["masterTemplatesAffected"]
+        if verbose:
+         cprint("list/dataprefix Response: {}".format(r.json()),"red")
+        time.sleep(5)
+        if verbose:
+         cprint("Post request too https://{}:{}/dataservice/template/device/config/input/".format(url,port))
+        r = s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplate))
+        for x in r.json()["data"]
+         data1["deviceIds"].append(x)
+        r = s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port), headers=headers,verify=verify, data=json.dumps(data1))
+        if verbose:
+         cprint("template/device/config/input Data: {}".format(data1),"green")
+         cprint("template/device/config/input Response: {}".format(r1.json()),"green")
+        time.sleep(5)
+        #r2 = s.post("https://{}:{}/dataservice/template/device/config/duplicateip".format(url,port), headers=headers,verify=verify, data=json.dumps(data2))
+        #cprint("Request2 Data: {}".format(data2),"green")
+        #cprint("response2 {}".format(r2.json()),"red")
+        #time.sleep(5)
         r3 = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers,verify=verify, data=json.dumps(data3))
+        attachid = r3.json()["id"]
+        #cprint("Request3 Header: {}".format(headers),"red")
+        #cprint("Request3 Data: {}".format(data3),"green")
         cprint("response3 {}".format(r3.json()),"green")
-        time.sleep(30)
-        r4 = s.put("https://{}:{}/dataservice/template/lock/{}".format(url,port,processID), headers=headers,verify=verify)
-        cprint("response4 status {}".format(r4),"purple")
-        time.sleep(2)
+        while(status == "in_progress"):
+         status = s.get("https://{}:{}/dataservice/device/action/status/{}".format(url,port, attachid)).json()["summary"]["status"]
+         time.sleep(5)
+         cprint(status,"yellow")
+        time.sleep(5)
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
         if "error" in r.json().keys():
