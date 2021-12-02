@@ -64,7 +64,7 @@ def getDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_na
     return list_id
 
 def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_id: str, list_name: str, verify: bool, headers: dict, ipv4: list, ipv6: list, retries: int, timeout: int, user_defined_entries: list = [], verbose: bool = False, dry: bool = False, *args, **kwargs) -> str:
-    masterTemplate = ""
+    masterTemplates = []
     data = {
         "name" :list_name,
         "entries": [
@@ -75,7 +75,7 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
             ],
     "isEdited": True,
     "isMasterEdited": False,
-    "templateId": masterTemplate
+    "templateId": masterTemplates
     }
     data2 = {
     "device": [
@@ -89,7 +89,7 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     data3= {
     "deviceTemplateList": [
         {
-            "templateId": masterTemplate,
+            "templateId": masterTemplates,
             "device": [
             ],
             "isEdited": True,
@@ -145,34 +145,43 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
             success = True
             continue
         r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
-        masterTemplate = r.json()["masterTemplatesAffected"]
+        for x in r.json()["masterTemplatesAffected"]:
+         masterTemplates.append(x)
         if verbose:
-         cprint("list/dataprefix Response: {}".format(r.json()),"red")
-        time.sleep(5)
+         cprint("list/dataprefix Response: {}".format(r.json()),"green")
+        time.sleep(2)
+        
+        for x in masterTemplates:
+         if verbose:
+          print("Post request too https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplates[x]))
+         r = s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplates[x]))
+         for x in r.json()["data"]:
+          data1["deviceIds"].append(x["uuid"])
+    
         if verbose:
-         cprint("Post request too https://{}:{}/dataservice/template/device/config/input/".format(url,port))
-        r = s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplate))
-        for x in r.json()["data"]
-         data1["deviceIds"].append(x)
+         cprint("Post request too https://{}:{}/dataservice/template/device/config/input/".format(url,port),"purple") 
         r = s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port), headers=headers,verify=verify, data=json.dumps(data1))
         if verbose:
          cprint("template/device/config/input Data: {}".format(data1),"green")
-         cprint("template/device/config/input Response: {}".format(r1.json()),"green")
-        time.sleep(5)
-        #r2 = s.post("https://{}:{}/dataservice/template/device/config/duplicateip".format(url,port), headers=headers,verify=verify, data=json.dumps(data2))
-        #cprint("Request2 Data: {}".format(data2),"green")
-        #cprint("response2 {}".format(r2.json()),"red")
-        #time.sleep(5)
-        r3 = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers,verify=verify, data=json.dumps(data3))
-        attachid = r3.json()["id"]
-        #cprint("Request3 Header: {}".format(headers),"red")
-        #cprint("Request3 Data: {}".format(data3),"green")
-        cprint("response3 {}".format(r3.json()),"green")
+         cprint("template/device/config/input Response: {}".format(r.json()),"green")
+        for x in r.json()["data"]:
+            data3["deviceTemplateList"][0]["device"].append(x)
+        print("Attatch feature data is: {}".format(data3))    
+        time.sleep(2)
+        r = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers,verify=verify, data=json.dumps(data3))
+        attachid = r.json()["id"]
+        if verbose:
+         cprint("Request3 Header: {}".format(headers),"red")
+         cprint("Request3 Data: {}".format(data3),"green")
+         cprint("response3 {}".format(r.json()),"green")
         while(status == "in_progress"):
          status = s.get("https://{}:{}/dataservice/device/action/status/{}".format(url,port, attachid)).json()["summary"]["status"]
          time.sleep(5)
-         cprint(status,"yellow")
-        time.sleep(5)
+         if status == "in_progress":
+          cprint("Template activate still in progress, status is: {}".format(status),"yellow")
+         if status == "done":
+          cprint("Template activate complete, status is: {}".format(status),"green")
+        time.sleep(1)
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
         if "error" in r.json().keys():
