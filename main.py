@@ -23,7 +23,7 @@ config = {
         "vmanage_port": 8443,
         "vmanage_user_defined_entries": [],
         "retries": 5,
-        "timeout": 10,
+        "timeout": 300,
         "ssl_verify": False,
         "http_proxy": False,
         "https_proxy": False
@@ -85,11 +85,11 @@ def main() -> None:
       
     data_prefix_list = [{
     "prefixes" : zscloudapac_list,"data_prefix_list" : "zscloudapac_list"},
-    {"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
-    {"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
-    {"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
-    {"prefixes" : zscaleremea_list, "data_prefix_list" : "zscaleremea_list"},
-    {"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
+    #{"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
+    #{"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
+    #{"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
+    #{"prefixes" : zscaleremea_list, "data_prefix_list" : "zscaleremea_list"},
+    #{"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
     ]
     lists = len(data_prefix_list)
         
@@ -106,7 +106,8 @@ def main() -> None:
      cprint("\nUpdating Data Prefix for: {}".format(x["data_prefix_list"]), "Purple")
      cprint("There are {} prefixes in this data set".format(len(x["prefixes"])),"Green")
      
-     pol_id = updateDataPrefix(s,x, headers)    
+     templates = updateDataPrefix(s,x, headers)
+     pol_id = activateTemplates(s, templates, headers)
      
      cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
      lists=lists-1
@@ -174,6 +175,19 @@ def getvManageSession():
  if verbose:
   cprint("{}".format(headers["Cookie"]), "green")
  return s, headers
-    
+ 
+def activateTemplates(s, templates, headers):
+ pol_id = vmanage.activateTemplates(s,
+       config["vmanage_address"],
+       config["vmanage_port"],
+       templates,
+       config["ssl_verify"],
+       headers,
+       config["timeout"],
+       config["retries"],
+       verbose
+      )
+ return pol_id
+       
 
 main()

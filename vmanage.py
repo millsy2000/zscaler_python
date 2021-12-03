@@ -63,39 +63,12 @@ def getDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_na
                 cprint("list name matches configuration. listId: {}".format(list_id), 'purple')
     return list_id
 
-def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_id: str, list_name: str, verify: bool, headers: dict, ipv4: list, ipv6: list, retries: int, timeout: int, user_defined_entries: list = [], verbose: bool = False, dry: bool = False, *args, **kwargs) -> str:
-    masterTemplates = []
+def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list_id: str, list_name: str, verify: bool, headers: dict, ipv4: list, ipv6: list, retries: int, timeout: int, user_defined_entries: list = [], verbose: bool = False, dry: bool = False, *args, **kwargs) -> list:
+
     data = {
-        "name" :list_name,
-        "entries": [
-        ],
-    }
-    data1= {  
-    "deviceIds": [
-            ],
-    "isEdited": True,
-    "isMasterEdited": False,
-    "templateId": masterTemplates
-    }
-    data2 = {
-    "device": [
-    {
-      "csv-deviceIP": "7.7.7.108",
-      "csv-deviceId": "d406d5ba-bba2-411c-b13c-eda76ba0055a",
-      "csv-host-name": "vSmart"
-    }
-    ]
-    }
-    data3= {
-    "deviceTemplateList": [
-        {
-            "templateId": masterTemplates,
-            "device": [
-            ],
-            "isEdited": True,
-            "isMasterEdited": False
-        }
-    ]
+         "name" : list_name,
+         "entries" : [
+         ]
     }
     if verbose:
         cprint("Creating data prefix list structure. ", "purple")
@@ -129,88 +102,107 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
                 cprint("Adding entry: {}".format(entry), "purple")
             data["entries"].append({"ipPrefix":"{}/32".format(entry) if '/' not in entry else entry})
 
-    success = False
-    attempts = 1
-    status = "in_progress"
-
     if verbose or dry:
         cprint("New Data Prefix List: {}".format(json.dumps(data, indent=2)), "green")
 
     if verbose:
         cprint("Putting new data prefix list data into vManage", "purple")
-    while success == False and attempts <= retries:
         #if verbose or dry:
         cprint("Put request to: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
-        if dry:
-            success = True
-            continue
-        r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
-        for x in r.json()["masterTemplatesAffected"]:
-         masterTemplates.append(x)
-        if verbose:
-         cprint("list/dataprefix Response: {}".format(r.json()),"green")
-        time.sleep(2)
+    attempts = 0
+    while attempts <= retries:
+     try:
+          r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
+          if verbose:
+           cprint("list/dataprefix Response: {}".format(r.json()),"green")
+           time.sleep(2)
+          masterTemplates=r.json()["masterTemplatesAffected"]
+          break
+     except Exception as e:
+          cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
+          attempts = attempts+1
+          cprint("Attempt number: {}".format(attempts),"red")
+          time.sleep(timeout)
+    return masterTemplates
+          
+def activateTemplates(s: requests.sessions.Session, url: str, port: int, masterTemplates: list, verify: bool, headers: dict, timeout: int, retries: int, verbose: bool = False,  *args, **kwargs) -> str:
+    attempts = 0
+    while attempts <= retries:
+     try:
+        attach_post = {'deviceTemplateList': []}
         
         for x in masterTemplates:
-         if verbose:
-          print("Post request too https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplates[x]))
-         r = s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,masterTemplates[x]))
-         for x in r.json()["data"]:
-          data1["deviceIds"].append(x["uuid"])
-    
-        if verbose:
-         cprint("Post request too https://{}:{}/dataservice/template/device/config/input/".format(url,port),"purple") 
-        r = s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port), headers=headers,verify=verify, data=json.dumps(data1))
-        if verbose:
-         cprint("template/device/config/input Data: {}".format(data1),"green")
-         cprint("template/device/config/input Response: {}".format(r.json()),"green")
-        for x in r.json()["data"]:
-            data3["deviceTemplateList"][0]["device"].append(x)
-        print("Attatch feature data is: {}".format(data3))    
-        time.sleep(2)
-        r = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers,verify=verify, data=json.dumps(data3))
+         masterTemplate = x
+         input_post = {"deviceIds" : [
+                     ],
+         "isEdited" : True,
+         "isMasterEdited" : False,
+         "templateId" : masterTemplate
+         }
+
+         attach_post_template = {'templateId': masterTemplate, 
+         'device': [], 
+         'isEdited': True, 
+         'isMasterEdited': False
+         }
+ 
+         r=s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,x), headers=headers)
+         for y in r.json()["data"]:
+          input_post["deviceIds"].append(y["uuid"])
+         r=s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port),headers=headers, data=json.dumps(input_post))
+         for z in r.json()["data"]:
+          z["csv-templateId"] = masterTemplate
+          attach_post_template["device"].append(z)
+         attach_post["deviceTemplateList"].append(attach_post_template)
+        
+        json_object = json.dumps(attach_post, indent=2)
+        cprint("Attach Feature Data Is: {}".format(json_object),"yellow")
+ 
+        r = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers, data=json.dumps(attach_post)) 
         attachid = r.json()["id"]
-        if verbose:
-         cprint("Request3 Header: {}".format(headers),"red")
-         cprint("Request3 Data: {}".format(data3),"green")
-         cprint("response3 {}".format(r.json()),"green")
+        time.sleep(3)
+        break
+     except Exception as e:
+        cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
+        attempts = attempts+1
+        cprint("Attempt number: {}".format(attempts),"red")
+        time.sleep(timeout)
+        
+    attempts = 0
+    status = "in_progress"
+    while attempts <= retries:
+     try:
         while(status == "in_progress"):
-         status = s.get("https://{}:{}/dataservice/device/action/status/{}".format(url,port, attachid)).json()["summary"]["status"]
-         time.sleep(5)
+         num_devices_left = 0
+         r = s.get("https://{}:{}/dataservice/device/action/status/{}".format(url,port, attachid)).json()
+         status = r["summary"]["status"]
+         for x in r["data"]:
+          if x["statusId"] == "in_progress":
+           num_devices_left = num_devices_left + 1
+         time.sleep(10)
          if status == "in_progress":
           cprint("Template activate still in progress, status is: {}".format(status),"yellow")
+          cprint("Number of devices still being provisioned is: {}".format(num_devices_left),"yellow")
          if status == "done":
           cprint("Template activate complete, status is: {}".format(status),"green")
         time.sleep(1)
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
-        if "error" in r.json().keys():
-            cprint("\nError:\n ", "red")
-            cprint(r.json()["error"]["message"], "yellow")
-            print()
-            cprint(r.json()["error"]["details"], "red")
-            print()
-            if attempts == retries:
-                cprint("Exceeded attempts {} of {}".format(attempts, retries), "red")
-                exit(-1)
-            else:
-                cprint("Trying again in {} seconds, attempt {} of {}".format(timeout, attempts, retries), "yellow")
-            attempts += 1
-            time.sleep(timeout)
-        else:
-            if verbose:
-                cprint("Successfully loaded new data prefix list entries", "green")
-            success = True
-            continue
 
-    if verbose or dry:
-        cprint("Fetching activated ID from: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
-    r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
-    if verbose:
-        cprint("Response: {}".format(r.text), "yellow")
-    js = r.json()
-    pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
-    cprint("pol_id is {}".format(pol_id),"red")
+        if verbose or dry:
+         cprint("Fetching activated ID from: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
+        r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
+        if verbose:
+         cprint("Response: {}".format(r.text), "yellow")
+        js = r.json()
+        pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
+        cprint("pol_id is {}".format(pol_id),"red")
+        break
+     except Exception as e:
+        cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
+        attempts = attempts+1
+        cprint("Attempt number: {}".format(attempts),"red")
+        time.sleep(timeout)
     return pol_id
 
 def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, pol_id: str, retries: int, timeout: int, verbose: bool = False, dry: bool = False, *args, **kwargs) -> None:
