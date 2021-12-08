@@ -10,11 +10,13 @@ Altered by millsy2000....
 :)
 """
 
+from typing import List
 import requests
 import json
 import time
 from lib.cprint import cprint
 from lib import ipReg
+import copy
 
 
 def getSession(url: str, uid: str, pwd: str, verify: bool = True, verbose: bool = False, *args, **kwargs) -> tuple:  
@@ -189,7 +191,7 @@ def activateTemplates(s: requests.sessions.Session, url: str, port: int, masterT
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
 
-        if verbose or dry:
+        if verbose:
          cprint("Fetching activated ID from: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
         r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
         if verbose:
@@ -229,4 +231,68 @@ def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: 
                 cprint("Trying again in {} seconds, attempt {} of {}".format(timeout, attempts, retries), "yellow")
             attempts += 1
             time.sleep(timeout)
+            
+def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, ipv4: dict,templatename: str, retries: int, timeout: int, verbose: bool = False, *args, **kwargs) -> List:
+
+            routeTemplate = {
+                        "prefix": {
+                            "vipObjectType": "object",
+                            "vipType": "constant",
+                            "vipValue": "",
+                            "vipVariableName": "vpn_ipv4_ip_prefix"
+                        },
+                        "vpn": {
+                            "vipType": "constant",
+                            "vipObjectType": "object",
+                            "vipValue": 0
+                        },
+                        "priority-order": [
+                            "prefix",
+                            "vpn"
+                        ]
+                    }
+
+            templatePost = {
+                       "factoryDefault": False,
+                       "viewMode": "edit",
+                       "templateDefinition": {
+                             "ip": {
+                                 "route": {
+                                      "vipValue": [],
+                                          }
+                                  }
+                                            }   
+                            }        
+
+            r = s.get("https://{}:{}/dataservice/template/feature/".format(url, port), headers=headers, verify=verify)
+            for index, x in enumerate(r.json()["data"]):
+                if x["templateName"] == templatename:
+                 templateID = x["templateId"]
+                 break
+                if len(r.json()["data"])-1 == index:
+                 cprint("Template Name not found in active templates, quiting...","red")
+                 exit()
+         
+            r = s.get("https://{}:{}/dataservice/template/feature/object/{}".format(url, port, templateID), headers=headers, verify=verify)
+            rjson = r.json()
+            testlist = []
+            templatePost["templateID"] = templateID
+            templatePost["templateName"] =  rjson["templateName"]
+            templatePost["templateDescription"] =  rjson["templateDescription"]
+            templatePost["deviceType"] = rjson["deviceType"]
+            templatePost["templateType"] = rjson["templateType"]
+            templatePost["templateMinVersion"] = rjson["templateMinVersion"]
+            templatePost["templateDefinition"] = rjson["editedTemplateDefinition"]
+            templatePost["templateDefinition"]["ip"]["route"]["vipValue"] = []
+
+            for index, i in enumerate(ipv4):
+                routeTemplate["prefix"]["vipValue"] =  i
+                templatePost["templateDefinition"]["ip"]["route"]["vipValue"].append(copy.deepcopy(routeTemplate))
+                
+            print(json.dumps(templatePost))
+            r = s.put("https://{}:{}/dataservice/template/feature/9c7326d5-02be-4fc4-b8f2-b916721b2343".format(url, port), headers=headers, data=json.dumps(templatePost),verify=verify)
+            print("Feature Template post response {}".format(r.json()))
+            masterTemplates=r.json()["masterTemplatesAffected"]
+
+            return masterTemplates
 

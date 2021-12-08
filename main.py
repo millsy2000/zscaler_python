@@ -15,6 +15,7 @@ import json
 import vmanage
 import time
 from lib.cprint import cprint
+from itertools import chain
 
 config = {
         "vmanage_user": 'admin',
@@ -47,6 +48,7 @@ def main() -> None:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
     ipv6 = "Null"
+    templatename = input("Please enter name of feature template to update: ")
 
     cprint("Retrieving ZScaler Public IP Addresses", "purple")
     
@@ -82,17 +84,18 @@ def main() -> None:
      for x in zscaleramerica:
       for y in zscaleramerica[x]:
        zscaleramerica_list.append(y["range"]) 
-      
-    data_prefix_list = [{
-    "prefixes" : zscloudapac_list,"data_prefix_list" : "zscloudapac_list"},
-    #{"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
-    #{"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
-    #{"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
-    #{"prefixes" : zscaleremea_list, "data_prefix_list" : "zscaleremea_list"},
-    #{"prefixes" : zscaleramerica_list, "data_prefix_list" : "zscaleramerica_list"}
-    ]
-    lists = len(data_prefix_list)
-        
+
+    prefixes = []
+    prefixes.append(zscloudapac_list)
+    prefixes.append(zscloudemea_list)  
+    prefixes.append(zscloudamerica_list)  
+    prefixes.append(zscalerapac_list)  
+    prefixes.append(zscaleremea_list)  
+    prefixes.append(zscaleramerica_list)  
+    
+    prefixes_unpacked = list(chain(*prefixes))
+    prefixes_unpacked = list(dict.fromkeys(prefixes_unpacked))
+    lists = len(prefixes_unpacked)
     cprint("\n###################################", "green")
     cprint("Updating vManage Data Prefix Lists", "yellow")
     cprint("There are {} lists to update".format(lists), "yellow")
@@ -100,18 +103,13 @@ def main() -> None:
 
     s,headers = getvManageSession()
 
-    for x in data_prefix_list:
-     #Iterate through Zscaler list update vManage Data Prefix lists
      
-     cprint("\nUpdating Data Prefix for: {}".format(x["data_prefix_list"]), "Purple")
-     cprint("There are {} prefixes in this data set".format(len(x["prefixes"])),"Green")
+    #templates = updateDataPrefix(s,x, headers)
+    templates = updateFeature(s, headers, prefixes_unpacked, templatename)
+    pol_id = activateTemplates(s, templates, headers)
      
-     templates = updateDataPrefix(s,x, headers)
-     pol_id = activateTemplates(s, templates, headers)
-     
-     cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
-     lists=lists-1
-     cprint("Number of Prefixes left to complete: {}".format(lists))
+    cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
+
     
 def updateDataPrefix(s,zscaler_region, headers):
     ipv6 = "Null"
@@ -125,7 +123,7 @@ def updateDataPrefix(s,zscaler_region, headers):
         verbose
     )
     cprint("Pushing updated Prefix list to vManage for {}".format(zscaler_region["data_prefix_list"]),'purple')
-    pol_id = vmanage.updateDataPrefixList(s, 
+    templates = vmanage.updateDataPrefixList(s, 
         config["vmanage_address"], 
         config["vmanage_port"], 
         data_prefix_list_id, 
@@ -140,7 +138,7 @@ def updateDataPrefix(s,zscaler_region, headers):
         verbose,
         dry
     )
-    return pol_id
+    return templates
 
 def updatevSmartPolicy(s,pol_id, headers):
     for id in pol_id:
@@ -188,6 +186,20 @@ def activateTemplates(s, templates, headers):
        verbose
       )
  return pol_id
+
+def updateFeature(s,headers, prefixes, templatename):
+ templates = vmanage.updateFeatureTemplate(s,
+       config["vmanage_address"],
+       config["vmanage_port"],
+       config["ssl_verify"],
+       headers,
+       prefixes,
+       templatename,
+       config["retries"],
+       config["timeout"],
+       verbose
+      )
+ return templates
        
 
 main()
