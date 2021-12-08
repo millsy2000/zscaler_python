@@ -83,9 +83,9 @@ def main() -> None:
       for y in zscaleramerica[x]:
        zscaleramerica_list.append(y["range"]) 
       
-    data_prefix_list = [{
-    "prefixes" : zscloudapac_list,"data_prefix_list" : "zscloudapac_list"},
-    #{"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
+    data_prefix_list = [
+    #{"prefixes" : zscloudapac_list,"data_prefix_list" : "zscloudapac_list"},
+    {"prefixes" : zscloudemea_list, "data_prefix_list" : "zscloudemea_list"},
     #{"prefixes" : zscloudamerica_list, "data_prefix_list" : "zscloudamerica_list"},
     #{"prefixes" : zscalerapac_list,"data_prefix_list" : "zscalerapac_list"},
     #{"prefixes" : zscaleremea_list, "data_prefix_list" : "zscaleremea_list"},
@@ -106,13 +106,17 @@ def main() -> None:
      cprint("\nUpdating Data Prefix for: {}".format(x["data_prefix_list"]), "Purple")
      cprint("There are {} prefixes in this data set".format(len(x["prefixes"])),"Green")
      
-     templates = updateDataPrefix(s,x, headers)
-     pol_id = activateTemplates(s, templates, headers)
+     templates,pol_id = updateDataPrefix(s,x, headers)
+     #pol_id = activateTemplates(s, templates, headers)
      
      cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
      lists=lists-1
      cprint("Number of Prefixes left to complete: {}".format(lists))
     
+    r = updatevSmartPolicy(s, pol_id, headers)
+   
+
+
 def updateDataPrefix(s,zscaler_region, headers):
     ipv6 = "Null"
     

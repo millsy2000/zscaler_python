@@ -68,7 +68,9 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     data = {
          "name" : list_name,
          "entries" : [
-         ]
+         ],
+         "isEdited" : True,
+         "isMasterEdited" : False
     }
     if verbose:
         cprint("Creating data prefix list structure. ", "purple")
@@ -113,17 +115,23 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
     while attempts <= retries:
      try:
           r = s.put("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify, data=json.dumps(data))
-          if verbose:
-           cprint("list/dataprefix Response: {}".format(r.json()),"green")
-           time.sleep(2)
+          #if verbose:
+          cprint("list/dataprefix Response: {}".format(r.json()),"green")
+          time.sleep(2)
           masterTemplates=r.json()["masterTemplatesAffected"]
+          r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
+          if verbose:
+           cprint("Response: {}".format(r.text), "yellow")
+          js = r.json()
+          pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
+          cprint("pol_id is {}".format(pol_id),"red")
           break
      except Exception as e:
           cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
           attempts = attempts+1
           cprint("Attempt number: {}".format(attempts),"red")
           time.sleep(timeout)
-    return masterTemplates
+    return masterTemplates, pol_id
           
 def activateTemplates(s: requests.sessions.Session, url: str, port: int, masterTemplates: list, verify: bool, headers: dict, timeout: int, retries: int, verbose: bool = False,  *args, **kwargs) -> str:
     attempts = 0
