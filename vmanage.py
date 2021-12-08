@@ -119,57 +119,59 @@ def updateDataPrefixList(s: requests.sessions.Session, url: str, port: int, list
            cprint("list/dataprefix Response: {}".format(r.json()),"green")
            time.sleep(2)
           masterTemplates=r.json()["masterTemplatesAffected"]
+          if verbose:
+           cprint("Fetching activated ID from: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
+          r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
+          if verbose:
+           cprint("Response: {}".format(r.text), "yellow")
+          js = r.json()
+          pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
+          cprint("pol_id is {}".format(pol_id),"red")
           break
      except Exception as e:
           cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
           attempts = attempts+1
           cprint("Attempt number: {}".format(attempts),"red")
           time.sleep(timeout)
-    return masterTemplates
+    return masterTemplates, pol_id
           
 def activateTemplates(s: requests.sessions.Session, url: str, port: int, masterTemplates: list, verify: bool, headers: dict, timeout: int, retries: int, verbose: bool = False,  *args, **kwargs) -> str:
-    attempts = 0
-    while attempts <= retries:
-     try:
-        attach_post = {'deviceTemplateList': []}
+    
+    attach_post = {'deviceTemplateList': []}
         
-        for x in masterTemplates:
-         masterTemplate = x
-         input_post = {"deviceIds" : [
+    for x in masterTemplates:
+     masterTemplate = x
+     input_post = {"deviceIds" : [
                      ],
-         "isEdited" : True,
-         "isMasterEdited" : False,
-         "templateId" : masterTemplate
-         }
+      "isEdited" : True,
+      "isMasterEdited" : False,
+      "templateId" : masterTemplate
+      }
 
-         attach_post_template = {'templateId': masterTemplate, 
-         'device': [], 
-         'isEdited': True, 
-         'isMasterEdited': False
-         }
+     attach_post_template = {'templateId': masterTemplate, 
+     'device': [], 
+     'isEdited': True, 
+     'isMasterEdited': False
+      }
  
-         r=s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,x), headers=headers)
-         for y in r.json()["data"]:
-          input_post["deviceIds"].append(y["uuid"])
-         r=s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port),headers=headers, data=json.dumps(input_post))
-         for z in r.json()["data"]:
-          z["csv-templateId"] = masterTemplate
-          attach_post_template["device"].append(z)
-         attach_post["deviceTemplateList"].append(attach_post_template)
+    r=s.get("https://{}:{}/dataservice/template/device/config/attached/{}".format(url,port,x), headers=headers)
+    for y in r.json()["data"]:
+     input_post["deviceIds"].append(y["uuid"])
+    r=s.post("https://{}:{}/dataservice/template/device/config/input/".format(url,port),headers=headers, data=json.dumps(input_post))
+    for z in r.json()["data"]:
+     z["csv-templateId"] = masterTemplate
+     attach_post_template["device"].append(z)
+    
+    attach_post["deviceTemplateList"].append(attach_post_template)
         
-        json_object = json.dumps(attach_post, indent=2)
-        cprint("Attach Feature Data Is: {}".format(json_object),"yellow")
+    json_object = json.dumps(attach_post, indent=2)
+    if verbose:
+     cprint("Attach Feature Data Is: {}".format(json_object),"yellow")
  
-        r = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers, data=json.dumps(attach_post)) 
-        attachid = r.json()["id"]
-        time.sleep(3)
-        break
-     except Exception as e:
-        cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
-        attempts = attempts+1
-        cprint("Attempt number: {}".format(attempts),"red")
-        time.sleep(timeout)
-        
+    r = s.post("https://{}:{}/dataservice/template/device/config/attachfeature".format(url,port), headers=headers, data=json.dumps(attach_post)) 
+    attachid = r.json()["id"]
+    time.sleep(3)
+          
     attempts = 0
     status = "in_progress"
     while attempts <= retries:
@@ -190,22 +192,12 @@ def activateTemplates(s: requests.sessions.Session, url: str, port: int, masterT
         time.sleep(1)
         if verbose:
             cprint("Response: {}".format(r.text), "yellow")
-
-        if verbose:
-         cprint("Fetching activated ID from: https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), "purple")
-        r = s.get("https://{}:{}/dataservice/template/policy/list/dataprefix/{}".format(url, port, list_id), headers=headers, verify=verify)
-        if verbose:
-         cprint("Response: {}".format(r.text), "yellow")
-        js = r.json()
-        pol_id = js["activatedId"] if 'activatedId' in js.keys() else ""
-        cprint("pol_id is {}".format(pol_id),"red")
         break
      except Exception as e:
         cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
         attempts = attempts+1
         cprint("Attempt number: {}".format(attempts),"red")
         time.sleep(timeout)
-    return pol_id
 
 def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, pol_id: str, retries: int, timeout: int, verbose: bool = False, dry: bool = False, *args, **kwargs) -> None:
     attempts = 1
@@ -234,7 +226,7 @@ def activatePolicies(s: requests.sessions.Session, url: str, port: int, verify: 
             
 def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, verify: bool, headers: dict, ipv4: dict,templatename: str, retries: int, timeout: int, verbose: bool = False, *args, **kwargs) -> List:
 
-            routeTemplate = {
+          routeTemplate = {
                         "prefix": {
                             "vipObjectType": "object",
                             "vipType": "constant",
@@ -252,7 +244,7 @@ def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, ver
                         ]
                     }
 
-            templatePost = {
+          templatePost = {
                        "factoryDefault": False,
                        "viewMode": "edit",
                        "templateDefinition": {
@@ -262,8 +254,10 @@ def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, ver
                                           }
                                   }
                                             }   
-                            }        
-
+                           }        
+          attempts = 0                
+          while attempts <= retries: 
+           try:
             r = s.get("https://{}:{}/dataservice/template/feature/".format(url, port), headers=headers, verify=verify)
             for index, x in enumerate(r.json()["data"]):
                 if x["templateName"] == templatename:
@@ -275,7 +269,7 @@ def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, ver
          
             r = s.get("https://{}:{}/dataservice/template/feature/object/{}".format(url, port, templateID), headers=headers, verify=verify)
             rjson = r.json()
-            testlist = []
+            
             templatePost["templateID"] = templateID
             templatePost["templateName"] =  rjson["templateName"]
             templatePost["templateDescription"] =  rjson["templateDescription"]
@@ -285,14 +279,20 @@ def updateFeatureTemplate(s: requests.sessions.Session, url: str, port: int, ver
             templatePost["templateDefinition"] = rjson["editedTemplateDefinition"]
             templatePost["templateDefinition"]["ip"]["route"]["vipValue"] = []
 
-            for index, i in enumerate(ipv4):
+            for i in ipv4:
                 routeTemplate["prefix"]["vipValue"] =  i
                 templatePost["templateDefinition"]["ip"]["route"]["vipValue"].append(copy.deepcopy(routeTemplate))
-                
-            print(json.dumps(templatePost))
-            r = s.put("https://{}:{}/dataservice/template/feature/9c7326d5-02be-4fc4-b8f2-b916721b2343".format(url, port), headers=headers, data=json.dumps(templatePost),verify=verify)
-            print("Feature Template post response {}".format(r.json()))
+            if verbose:    
+             cprint("Put requet too https://{}:{}/dataservice/template/feature/{}: {}".format(url,port, templateID, json.dumps(templatePost)))
+            r = s.put("https://{}:{}/dataservice/template/feature/{}".format(url, port,templateID), headers=headers, data=json.dumps(templatePost),verify=verify)
+            if verbose:
+             print("Feature Template post response {}".format(r.json()))
             masterTemplates=r.json()["masterTemplatesAffected"]
-
-            return masterTemplates
+            break
+           except Exception as e:
+            cprint("Exception: {} Waiting {} seconds to try again".format(e,timeout),"red")
+            attempts = attempts+1
+            cprint("Attempt number: {}".format(attempts),"red")
+            time.sleep(timeout) 
+          return masterTemplates
 

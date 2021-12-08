@@ -22,7 +22,7 @@ config = {
         "vmanage_password": 'admin',
         "vmanage_address": '192.168.0.230',
         "vmanage_port": 8443,
-        "vmanage_user_defined_entries": [],
+        "vmanage_user_defined_entries": ["1.1.1.1/32", "2.2.2.2/32"],
         "retries": 5,
         "timeout": 300,
         "ssl_verify": False,
@@ -92,23 +92,22 @@ def main() -> None:
     prefixes.append(zscalerapac_list)  
     prefixes.append(zscaleremea_list)  
     prefixes.append(zscaleramerica_list)  
-    
+    prefixes.append(config["vmanage_user_defined_entries"])
+
     prefixes_unpacked = list(chain(*prefixes))
     prefixes_unpacked = list(dict.fromkeys(prefixes_unpacked))
     lists = len(prefixes_unpacked)
+    
     cprint("\n###################################", "green")
-    cprint("Updating vManage Data Prefix Lists", "yellow")
-    cprint("There are {} lists to update".format(lists), "yellow")
+    cprint("Updating vManage VPN Feature Template", "yellow")
+    cprint("There are {} prefixes to upload".format(lists), "yellow")
     cprint("###################################\n", "green")
 
     s,headers = getvManageSession()
 
-     
     #templates = updateDataPrefix(s,x, headers)
     templates = updateFeature(s, headers, prefixes_unpacked, templatename)
-    pol_id = activateTemplates(s, templates, headers)
-     
-    cprint("Successfully updated Data Prefix List: {}".format(x["data_prefix_list"]), "green")
+    activateTemplates(s, templates, headers)
 
     
 def updateDataPrefix(s,zscaler_region, headers):
@@ -138,7 +137,7 @@ def updateDataPrefix(s,zscaler_region, headers):
         verbose,
         dry
     )
-    return templates
+    return templates, pol_id
 
 def updatevSmartPolicy(s,pol_id, headers):
     for id in pol_id:
@@ -188,6 +187,7 @@ def activateTemplates(s, templates, headers):
  return pol_id
 
 def updateFeature(s,headers, prefixes, templatename):
+ cprint("Updating feature template {} with {} prefixes".format(templatename, len(prefixes)),'purple')
  templates = vmanage.updateFeatureTemplate(s,
        config["vmanage_address"],
        config["vmanage_port"],
